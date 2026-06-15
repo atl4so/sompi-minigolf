@@ -16,7 +16,6 @@ function MultiplayerLobby() {
   const [room, setRoom] = useState<RoomState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const gameRef = useRef<Game | null>(null);
-  const consumedPendingAction = useRef(false);
 
   useEffect(() => {
     socket.emit('joinLobby', 'multi');
@@ -85,37 +84,6 @@ function MultiplayerLobby() {
     socket.emit('leaveRoom');
     setRoom(null);
   }, []);
-
-  useEffect(() => {
-    if (consumedPendingAction.current) {
-      return;
-    }
-
-    const rawPendingAction = sessionStorage.getItem('minigolf.pendingRoomAction');
-    if (!rawPendingAction) {
-      return;
-    }
-
-    consumedPendingAction.current = true;
-    sessionStorage.removeItem('minigolf.pendingRoomAction');
-
-    try {
-      const pendingAction = JSON.parse(rawPendingAction) as { action?: 'create' | 'join'; roomCode?: string };
-      if (pendingAction.action === 'create') {
-        createRoom();
-        return;
-      }
-
-      if (pendingAction.action === 'join' && pendingAction.roomCode) {
-        const cleanUsername = saveUsername();
-        const cleanRoomCode = pendingAction.roomCode.trim().toUpperCase();
-        setRoomCode(cleanRoomCode);
-        socket.emit('joinRoom', cleanRoomCode, cleanUsername, handleRoomResponse);
-      }
-    } catch {
-      setError('Could not open room action');
-    }
-  }, [createRoom, handleRoomResponse, saveUsername]);
 
   const localPlayer = room?.players.find((player) => player.id === socket.id);
   const currentPlayer = room?.players.find((player) => player.playerId === room.currentPlayerId);

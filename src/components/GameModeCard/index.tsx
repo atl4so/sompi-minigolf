@@ -9,7 +9,6 @@ interface GameModeCardProps {
 
 function GameModeCard({ lobbyType }: GameModeCardProps) {
   const { T } = useT();
-  const href = lobbyType === 'single' ? '/game/1' : `/lobby/${lobbyType}`;
 
   const lobbyName = ((): string => {
     switch (lobbyType) {
@@ -25,7 +24,7 @@ function GameModeCard({ lobbyType }: GameModeCardProps) {
   return (
     <div className={styles['game-mode-card']}>
       <h1>{lobbyName}</h1>
-      <Button href={href}>{lobbyName}</Button>
+      <Button href={`/lobby/${lobbyType}`}>{lobbyName}</Button>
     </div>
   );
 }

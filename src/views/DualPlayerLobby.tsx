@@ -1,20 +1,19 @@
-import { useEffect } from 'react';
-import LobbyNavigation from '~/components/LobbyNavigation';
-import Stack from '~/components/Stack';
-import { socket } from '~/socket';
+import { useCallback, useState } from 'react';
+import GameCanvas from '~/components/GameCanvas';
 
 function DualPlayerLobby() {
-  useEffect(() => {
-    socket.emit('joinLobby', 'dual');
+  const [currentPlayerId, setCurrentPlayerId] = useState(0);
+  const nextTurn = useCallback(() => {
+    setCurrentPlayerId((playerId) => (playerId + 1) % 2);
   }, []);
 
   return (
-    <div>
-      <img src="/assets/sprites/bg-lobby-dual.gif" />
-      <Stack direction="row" justifyContent="flex-end" height="100%" alignItems="flex-end">
-        <LobbyNavigation lobbyType="dual" />
-      </Stack>
-    </div>
+    <GameCanvas
+      playerCount={2}
+      localPlayerId={currentPlayerId}
+      currentPlayerId={currentPlayerId}
+      onTurnComplete={nextTurn}
+    />
   );
 }
 

@@ -58,6 +58,12 @@ function GameCanvas({
   }, [currentPlayerId]);
 
   useEffect(() => {
+    if (localPlayerId !== undefined) {
+      gameRef.current?.setLocalPlayer(localPlayerId);
+    }
+  }, [localPlayerId]);
+
+  useEffect(() => {
     return () => gameRef.current?.cleanUp();
   }, []);
 
