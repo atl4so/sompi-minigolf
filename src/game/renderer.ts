@@ -3,7 +3,7 @@ import { log } from '~/utils/logger';
 import { GAME_HEIGHT, GAME_WIDTH, HALF_BALL, TILE_SIZE } from './constants';
 import { drawDashedLine, drawLine } from './draw';
 import { MinigolfMap } from './minigolfMap';
-import { finishStroke, getPlayerPos, getStrokePower, stepPhysics } from './physics';
+import { getPlayerPos, getStrokePower, setPlayerPosRel, setPlayerSpeed, setPlayerX, setPlayerY } from './physics';
 import { spriteManager } from './spriteManager';
 
 interface MapRenderResult {
@@ -181,7 +181,26 @@ export function shootDrawLoop() {
   let anyBallMoving = false;
 
   for (let i = 0; i < game.playerCount; ++i) {
-    anyBallMoving = stepPhysics(i) || anyBallMoving;
+    setPlayerPosRel(i, game.speedX[i] * 0.1, game.speedY[i] * 0.1);
+
+    if (game.playerX[i] < 6.6) {
+      setPlayerX(i, 6.6);
+    }
+
+    if (game.playerX[i] > 727.9) {
+      setPlayerX(i, 727.9);
+    }
+
+    if (game.playerY[i] < 6.6) {
+      setPlayerY(i, 6.6);
+    }
+
+    if (game.playerY[i] > 367.9) {
+      setPlayerY(i, 367.9);
+    }
+
+    setPlayerSpeed(i, game.speedX[i] * 0.985, game.speedY[i] * 0.985);
+    anyBallMoving = Math.abs(game.speedX[i]) > 0.2 || Math.abs(game.speedY[i]) > 0.2 || anyBallMoving;
   }
 
   game.cursorCtx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
@@ -190,7 +209,12 @@ export function shootDrawLoop() {
   if (anyBallMoving) {
     game.animationFrameId = requestAnimationFrame(shootDrawLoop);
   } else {
+    for (let i = 0; i < game.playerCount; ++i) {
+      setPlayerSpeed(i, 0, 0);
+    }
     game.animationFrameId = null;
-    finishStroke();
+    game.gameBusy = false;
+    game.onTurnComplete?.();
+    drawAimLine();
   }
 }

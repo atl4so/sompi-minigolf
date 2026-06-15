@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { Route } from 'wouter';
 import LanguageSelect from './components/LanguageSelect';
 import { useAssetPreloader } from './hooks/useAssetPreloader';
@@ -13,20 +12,9 @@ import { LobbySelect } from './views/LobbySelect';
 
 function App() {
   const { loadingAssets } = useAssetPreloader();
-  const [gameScale, setGameScale] = useState(1);
   useSocketState();
 
   useLocalStorageLocale();
-
-  useEffect(() => {
-    const updateScale = () => {
-      setGameScale(Math.min(window.innerWidth / 735, window.innerHeight / 535));
-    };
-
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-  }, []);
 
   if (loadingAssets) {
     return <LoadingScreen />;
@@ -36,7 +24,7 @@ function App() {
     <>
       <LanguageSelect />
       <div className="app-container">
-        <div id="game" style={{ transform: `scale(${gameScale})` }}>
+        <div id="game">
           <Route path="/" component={LobbySelect} />
           <Route path="/lobby/:lobbyType">{(params) => <Lobby lobbyType={params.lobbyType as LobbyType} />}</Route>
           <Route path="/game/:gameId" component={Game} />
