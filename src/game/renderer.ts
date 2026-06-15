@@ -2,6 +2,7 @@ import { rgbToLong } from '~/utils/color';
 import { log } from '~/utils/logger';
 import { GAME_HEIGHT, GAME_WIDTH, HALF_BALL, HALF_TILE, TILE_SIZE } from './constants';
 import { drawDashedLine, drawLine } from './draw';
+import type { JavaShotResult } from './javaEngine';
 import { MinigolfMap } from './minigolfMap';
 import { getPlayerPos, getStrokePower, resetPlayerPosition, setPlayerPosRel, setPlayerSpeed, setPlayerX, setPlayerY } from './physics';
 import { getPixelMask, spriteManager } from './spriteManager';
@@ -411,6 +412,32 @@ export function renderMap(map: MinigolfMap): MapRenderResult {
   return {
     startPositions,
   };
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function applyJavaMapTiles(encodedMapTiles: string): void {
+  if (!game.currentMap || !encodedMapTiles) {
+    return;
+  }
+
+  const bytes = base64ToBytes(encodedMapTiles);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 0;
+
+  for (let tileY = 0; tileY < game.currentMap.height; tileY++) {
+    for (let tileX = 0; tileX < game.currentMap.width; tileX++) {
+      game.currentMap.tiles[tileX][tileY] = createTileFromCode(view.getInt32(offset, false));
+      offset += 4;
+    }
+  }
 }
 
 export const tileToDrawPosition = (tileX: number, tileY: number) =>
@@ -1332,6 +1359,53 @@ export function startShotLoop() {
   game.magnetSpeed = 1;
   game.shotState = createShotState();
   shootDrawLoop();
+}
+
+export function replayJavaShot(result: JavaShotResult): void {
+  if (game.animationFrameId !== null) {
+    cancelAnimationFrame(game.animationFrameId);
+  }
+
+  let frameIndex = 0;
+  const frames = result.frames.length > 0 ? result.frames : [result.playerX.flatMap((x, i) => [x, result.playerY[i]])];
+
+  const drawFrame = () => {
+    const frame = frames[Math.min(frameIndex, frames.length - 1)];
+    for (let playerId = 0; playerId < game.playerCount; playerId++) {
+      setPlayerX(playerId, frame[playerId * 2] ?? game.playerX[playerId]);
+      setPlayerY(playerId, frame[playerId * 2 + 1] ?? game.playerY[playerId]);
+    }
+
+    game.cursorCtx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    drawBalls();
+    frameIndex++;
+
+    if (frameIndex < frames.length) {
+      game.animationFrameId = requestAnimationFrame(drawFrame);
+      return;
+    }
+
+    for (let playerId = 0; playerId < game.playerCount; playerId++) {
+      setPlayerX(playerId, result.playerX[playerId]);
+      setPlayerY(playerId, result.playerY[playerId]);
+      setPlayerSpeed(playerId, result.speedX[playerId] ?? 0, result.speedY[playerId] ?? 0);
+      game.onHoleSync[playerId] = result.onHole[playerId] ?? game.onHoleSync[playerId];
+    }
+
+    game.seed.setRaw(result.seedRaw);
+    applyJavaMapTiles(result.mapTiles);
+    if (game.currentMap) {
+      renderMap(game.currentMap);
+    }
+    game.animationFrameId = null;
+    game.shotState = null;
+    game.gameBusy = false;
+    game.onTurnComplete?.();
+    drawAimLine();
+  };
+
+  game.gameBusy = true;
+  drawFrame();
 }
 
 function shootDrawLoop() {

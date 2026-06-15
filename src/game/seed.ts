@@ -9,6 +9,14 @@ export class GameSeed {
     this.rnd = (BigInt(init) ^ JAVA_RANDOM_MULTIPLIER) & JAVA_RANDOM_MASK;
   }
 
+  getRaw(): number {
+    return Number(this.rnd);
+  }
+
+  setRaw(raw: number): void {
+    this.rnd = BigInt(raw) & JAVA_RANDOM_MASK;
+  }
+
   next(): number {
     this.rnd = (this.rnd * JAVA_RANDOM_MULTIPLIER + JAVA_RANDOM_ADDEND) & JAVA_RANDOM_MASK;
 

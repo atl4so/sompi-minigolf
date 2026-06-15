@@ -1,10 +1,12 @@
 import { Server, Socket } from 'socket.io';
+import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import type { StrokeInput } from '~/game/physics';
 import { LobbyType, RoomResponse, RoomState, User } from '~/types';
 import { log } from '~/utils/logger';
 import { WS_PORT } from './env';
+import { simulateJavaShot } from './javaShot';
 
 export interface ServerToClientEvents {
   userJoined: (username: string) => void;
@@ -42,11 +44,65 @@ interface SocketData {
   playerId?: number;
 }
 
-const io = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>(WS_PORT, {
+const httpServer = createServer((request, response) => {
+  void handleHttpRequest(request, response);
+});
+
+const io = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>(httpServer, {
   cors: {
     origin: '*',
   },
 });
+
+function writeCorsHeaders(response: ServerResponse) {
+  response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
+}
+
+async function handleHttpRequest(request: IncomingMessage, response: ServerResponse) {
+  if (request.url?.startsWith('/api/java-shot')) {
+    writeCorsHeaders(response);
+
+    if (request.method === 'OPTIONS') {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+
+    if (request.method !== 'POST') {
+      response.writeHead(405, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ error: 'Method not allowed' }));
+      return;
+    }
+
+    try {
+      const result = await simulateJavaShot(await readJsonBody(request));
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify(result));
+    } catch (error) {
+      log.error('Java shot simulation failed', error);
+      response.writeHead(500, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ error: 'Java shot simulation failed' }));
+    }
+    return;
+  }
+
+  if (request.url?.startsWith('/socket.io/')) {
+    return;
+  }
+
+  response.writeHead(404, { 'Content-Type': 'application/json' });
+  response.end(JSON.stringify({ error: 'Not found' }));
+}
 
 function getConnectionsText() {
   const { clientsCount } = io.engine;
@@ -297,7 +353,10 @@ const { hot } = import.meta;
 if (hot) {
   hot.on('vite:beforeFullReload', () => {
     io.close();
+    httpServer.close();
   });
 }
 
-log.info(`Socket.IO server started on port ${WS_PORT}`);
+httpServer.listen(WS_PORT, () => {
+  log.info(`Socket.IO server started on port ${WS_PORT}`);
+});

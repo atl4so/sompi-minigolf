@@ -1,6 +1,7 @@
 import { log } from '~/utils/logger';
 import { HALF_BALL } from './constants';
-import { startShotLoop } from './renderer';
+import { simulateJavaShot } from './javaEngine';
+import { replayJavaShot, startShotLoop } from './renderer';
 
 export interface StrokeInput {
   playerId: number;
@@ -183,14 +184,7 @@ export function isMouseInsideBall(playerId: number): boolean {
   return Math.sqrt(subX * subX + subY * subY) < HALF_BALL;
 }
 
-export function doStroke(playerId: number, stroke?: StrokeInput, emitLocalStroke = true): void {
-  const mouseX = stroke?.mouseX ?? game.mouseX;
-  const mouseY = stroke?.mouseY ?? game.mouseY;
-  const shootingMode = stroke?.shootingMode ?? game.shootingMode;
-  const audio = new Audio('/assets/sounds/gamemove.wav');
-  audio.play().catch(() => undefined);
-  log.debug(`Doing stroke @ (${mouseX}, ${mouseY})`);
-
+function applyStrokeVelocity(playerId: number, mouseX: number, mouseY: number, shootingMode: number): void {
   const [powerX, powerY] = getStrokePower(...getPlayerPos(playerId), mouseX, mouseY);
   setPlayerSpeed(playerId, powerX, powerY);
 
@@ -217,6 +211,21 @@ export function doStroke(playerId: number, stroke?: StrokeInput, emitLocalStroke
     getPlayerSpeedX(playerId) + speedVariance * ((game.seed.next() % 50001) / 100000 - 0.25),
     getPlayerSpeedY(playerId) + speedVariance * ((game.seed.next() % 50001) / 100000 - 0.25),
   );
+}
+
+export function doStroke(playerId: number, stroke?: StrokeInput, emitLocalStroke = true): void {
+  const mouseX = stroke?.mouseX ?? game.mouseX;
+  const mouseY = stroke?.mouseY ?? game.mouseY;
+  const shootingMode = stroke?.shootingMode ?? game.shootingMode;
+  const strokeInput = {
+    playerId,
+    mouseX,
+    mouseY,
+    shootingMode,
+  };
+  const audio = new Audio('/assets/sounds/gamemove.wav');
+  audio.play().catch(() => undefined);
+  log.debug(`Doing stroke @ (${mouseX}, ${mouseY})`);
 
   /*
   isLocalPlayer = isLocalPlayer;
@@ -226,12 +235,21 @@ export function doStroke(playerId: number, stroke?: StrokeInput, emitLocalStroke
 
   globalThis.game.gameBusy = true;
   if (emitLocalStroke) {
-    game.onLocalStroke?.({
-      playerId,
-      mouseX,
-      mouseY,
-      shootingMode,
-    });
+    game.onLocalStroke?.(strokeInput);
   }
-  startShotLoop();
+
+  simulateJavaShot(strokeInput)
+    .then((result) => {
+      if (result) {
+        replayJavaShot(result);
+        return;
+      }
+
+      applyStrokeVelocity(playerId, mouseX, mouseY, shootingMode);
+      startShotLoop();
+    })
+    .catch(() => {
+      applyStrokeVelocity(playerId, mouseX, mouseY, shootingMode);
+      startShotLoop();
+    });
 }
