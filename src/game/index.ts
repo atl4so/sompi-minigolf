@@ -60,6 +60,7 @@ export async function startGame(
     gameBusy: false,
     cursorImgData: cursorCtx.getImageData(0, 0, cursorCanvas.width, cursorCanvas.height),
     currentMap: null,
+    collisionMap: null,
     animationFrameId: null,
     onLocalStroke: options.onLocalStroke,
     onTurnComplete: options.onTurnComplete,

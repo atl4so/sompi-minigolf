@@ -1,6 +1,8 @@
 import { log } from '~/utils/logger';
 
 interface Sprite {
+  data: ImageData;
+  mask: number[][];
   height: number;
   width: number;
   draw(ctx: CanvasRenderingContext2D, x: number, y: number): void;
@@ -10,8 +12,24 @@ interface SpriteManager {
   [sheetName: string]: Sprite[];
 }
 
+function createPixelMask(spriteData: ImageData, spriteWidth: number, spriteHeight: number): number[][] {
+  const mask = Array.from({ length: spriteWidth }, () => new Array<number>(spriteHeight));
+
+  for (let y = 0; y < spriteHeight; y++) {
+    for (let x = 0; x < spriteWidth; x++) {
+      const index = (y * spriteWidth + x) * 4;
+      const rgb = (spriteData.data[index] << 16) | (spriteData.data[index + 1] << 8) | spriteData.data[index + 2];
+      mask[x][y] = rgb === 0xccccff ? 1 : 2;
+    }
+  }
+
+  return mask;
+}
+
 function createSprite(spriteData: ImageData, spriteWidth: number, spriteHeight: number): Sprite {
   return {
+    data: spriteData,
+    mask: createPixelMask(spriteData, spriteWidth, spriteHeight),
     width: spriteWidth,
     height: spriteHeight,
     draw: (ctx: CanvasRenderingContext2D, x: number, y: number) => {
@@ -38,6 +56,18 @@ type LoadSpritesheetsInput = [
 ];
 
 export const spriteManager: SpriteManager = {};
+
+export function getPixelMask(isSpecial: number, shapeOrSpecialIndex: number): number[][] | undefined {
+  if (isSpecial === 1) {
+    return spriteManager.shapes?.[shapeOrSpecialIndex]?.mask;
+  }
+
+  if (isSpecial === 2) {
+    return spriteManager.special?.[shapeOrSpecialIndex]?.mask;
+  }
+
+  return undefined;
+}
 
 export async function loadSpritesheets(
   ctx: CanvasRenderingContext2D,

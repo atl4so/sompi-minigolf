@@ -18,6 +18,7 @@ declare var game: {
   cursorImgData: ImageData;
   mod: 0 | 1 | 2 | 3;
   currentMap: import('./minigolfMap').MinigolfMap | null;
+  collisionMap: Uint8Array | null;
   animationFrameId: number | null;
   onLocalStroke?: (stroke: import('./physics').StrokeInput) => void;
   onTurnComplete?: () => void;

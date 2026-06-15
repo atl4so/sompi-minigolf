@@ -1,6 +1,6 @@
 import { log } from '~/utils/logger';
 import { HALF_BALL } from './constants';
-import { shootDrawLoop } from './renderer';
+import { startShotLoop } from './renderer';
 
 export interface StrokeInput {
   playerId: number;
@@ -164,8 +164,8 @@ export function isMouseInsideBall(playerId: number): boolean {
   const playerDrawX = game.playerX[playerId];
   const playerDrawY = game.playerY[playerId];
 
-  const subX = playerDrawX + HALF_BALL - game.mouseX;
-  const subY = playerDrawY + HALF_BALL - game.mouseY;
+  const subX = playerDrawX - game.mouseX;
+  const subY = playerDrawY - game.mouseY;
   return Math.sqrt(subX * subX + subY * subY) < HALF_BALL;
 }
 
@@ -196,14 +196,6 @@ export function doStroke(playerId: number, stroke?: StrokeInput, emitLocalStroke
     setPlayerSpeed(playerId, -speedY, speedX);
   }
 
-  const [speedX, speedY] = getPlayerSpeed(playerId);
-  const speed = Math.sqrt(speedX * speedX + speedY * speedY);
-  let scaledSpeed = speed / 6.5; // Some scaling? Not sure
-  scaledSpeed *= scaledSpeed; // ?
-
-  // This is the part where you add randomness to the shot, currently disabled
-  setPlayerSpeedRel(playerId, scaledSpeed / 100000.0 - 0.25, scaledSpeed / 100000.0 - 0.25);
-
   /*
   isLocalPlayer = isLocalPlayer;
   gameState = 2;
@@ -219,5 +211,5 @@ export function doStroke(playerId: number, stroke?: StrokeInput, emitLocalStroke
       shootingMode,
     });
   }
-  shootDrawLoop();
+  startShotLoop();
 }
