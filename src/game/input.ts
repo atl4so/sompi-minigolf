@@ -3,7 +3,11 @@ import { doStroke, isMouseInsideBall } from './physics';
 import { drawAimLine } from './renderer';
 
 export function mouseEventToPos(evt: MouseEvent): [number, number] {
-  return [evt.clientX - game.canvasRect.left, evt.clientY - game.canvasRect.top];
+  game.canvasRect = game.cursorCanvas.getBoundingClientRect();
+  return [
+    ((evt.clientX - game.canvasRect.left) * game.cursorCanvas.width) / game.canvasRect.width,
+    ((evt.clientY - game.canvasRect.top) * game.cursorCanvas.height) / game.canvasRect.height,
+  ];
 }
 
 export function onMouseMove(evt: MouseEvent): void {
@@ -18,6 +22,10 @@ export function onMouseMove(evt: MouseEvent): void {
 }
 
 export function onMouseDown(evt: MouseEvent): void {
+  if (game.currentPlayerId !== game.localPlayerId) {
+    return;
+  }
+
   const pos = mouseEventToPos(evt);
   globalThis.game.mouseX = pos[0];
   globalThis.game.mouseY = pos[1];

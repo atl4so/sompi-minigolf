@@ -32,10 +32,13 @@ header {
   display: flex;
   justify-content: center;
   align-items: center;
+  overflow: hidden;
 }
 
 #game {
   width: 735px;
-  height: 525px;
+  height: 535px;
+  flex: 0 0 auto;
+  transform-origin: center center;
   user-select: none;
 }

@@ -1,9 +1,9 @@
 {
-  "name": "minigolf",
-  "description": "Remake of the past Playforia.net/Aapeli.com minigolf",
+  "name": "sompi-minigolf",
+  "description": "Browser minigolf rooms inspired by classic 2000s web minigolf",
   "version": "0.0.0",
-  "repository": "github:eioo/minigolf",
-  "bugs": "https://github.com/eioo/minigolf/issues",
+  "repository": "github:atl4so/sompi-minigolf",
+  "bugs": "https://github.com/atl4so/sompi-minigolf/issues",
   "license": "MIT",
   "scripts": {
     "dev:vite": "vite",

@@ -8,6 +8,8 @@ declare var game: {
   playerY: number[];
   speedX: number[];
   speedY: number[];
+  playerCount: number;
+  localPlayerId: number;
   mouseX: number;
   mouseY: number;
   currentPlayerId: number;
@@ -16,4 +18,7 @@ declare var game: {
   cursorImgData: ImageData;
   mod: 0 | 1 | 2 | 3;
   currentMap: import('./minigolfMap').MinigolfMap | null;
+  animationFrameId: number | null;
+  onLocalStroke?: (stroke: import('./physics').StrokeInput) => void;
+  onTurnComplete?: () => void;
 };

@@ -1,0 +1,11 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  VITE_WS_URL = "https://coinathlete.tail4ce556.ts.net"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

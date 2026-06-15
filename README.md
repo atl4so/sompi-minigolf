@@ -1,35 +1,57 @@
-# Minigolf
+# Sompi Minigolf
 
-Remake Playforia.net/Aapeli.com Minigolf game written with TypeScript, powered by React and HTML canvas API.
+Browser minigolf rooms inspired by classic 2000s web minigolf.
 
-### Requirements
+## Live
 
-- Node.js >= 16
-- Yarn
+- Netlify: https://sompi-minigolf.netlify.app/
+- Public realtime test endpoint: https://coinathlete.tail4ce556.ts.net/
 
-### Installation & running
+The Netlify client currently uses the public realtime endpoint above for Socket.IO rooms. That endpoint is good for playtesting, but the next production step is moving realtime hosting off the local PC.
 
-1. _(Optional)_ Default ports used are `8080` (Vite) and `8081` (Socket.IO), these can be configured by adding `.env` file to root of this repository:
+## What Works
 
-   ```sh
-   VITE_PORT=8080          # Frontend port
-   VITE_WS_HOST=localhost  # Socket.IO server host
-   VITE_WS_PORT=8081       # Socket.IO server port
-   ```
+- Static browser client deploys to Netlify.
+- Fullscreen viewport scaling without remote desktop streaming.
+- Create/join multiplayer rooms by code.
+- Host can start a room and all players receive the same track.
+- Basic shared stroke broadcast.
+- Playable browser shot loop with friction, wall bounce, and stop state.
 
-2. Install and run app:
+## Local Development
 
-   ```
-   yarn
-   yarn dev
-   ```
+```sh
+npm install
+npm run dev
+```
 
-## Thanks
+Default ports:
 
-- Thanks to [WorldStarHipHopX](https://github.com/WorldStarHipHopX) for providing the original source code for the game.
-- Thanks to [PhilippvK](https://github.com/PhilippvK), [pehala](https://github.com/pehala), [maitovelkkis](https://github.com/maitovelkkis), [buozyte](https://github.com/buozyte) and [officialebz](https://github.com/officialebz) for their contributions at [PhilippvK/playforia-minigolf](https://github.com/PhilippvK/playforia-minigolf).
-- Thanks to [Nokkasiili](https://github.com/nokkasiili) for doing the Rust port of the Java version and understanding/cleaning up most of the Java codebase.
+```sh
+VITE_PORT=8080
+VITE_WS_PORT=8081
+VITE_WS_URL=
+```
+
+Use `VITE_WS_URL` when the browser client should connect to a remote Socket.IO endpoint.
+
+## Build
+
+```sh
+npm run build
+```
+
+## Attribution
+
+This project started from the MIT-licensed `eioo/minigolf` TypeScript remake and keeps attribution to the original reverse-engineering and porting work:
+
+- WorldStarHipHopX for original source-code recovery work.
+- PhilippvK and contributors at `PhilippvK/playforia-minigolf`.
+- Nokkasiili for Rust port/reference work.
+- eioo for the TypeScript/React canvas remake.
+
+Classic game names and trademarks belong to their owners.
 
 ## License
 
-[MIT](https://github.com/eioo/minigolf/blob/main/LICENSE)
+MIT.

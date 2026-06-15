@@ -13,17 +13,24 @@ export function useAssetPreloader() {
 
   useEffect(() => {
     let loadedAssets = 0;
+    const fallbackTimer = window.setTimeout(() => setLoadingAssets(false), 1500);
 
     PRELOAD_ASSETS.forEach((picture) => {
       const img = new Image();
-      img.src = picture;
-      img.onload = () => {
+
+      const markLoaded = () => {
         loadedAssets++;
         if (loadedAssets === PRELOAD_ASSETS.length) {
           setLoadingAssets(false);
         }
       };
+
+      img.onload = markLoaded;
+      img.onerror = markLoaded;
+      img.src = picture;
     });
+
+    return () => window.clearTimeout(fallbackTimer);
   }, []);
 
   return { loadingAssets };

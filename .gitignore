@@ -6,3 +6,5 @@ dist-ssr
 playforia-minigolf
 .build-stats.html
 .env
+# Local Netlify folder
+.netlify

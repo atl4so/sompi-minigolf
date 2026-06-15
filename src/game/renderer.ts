@@ -3,7 +3,7 @@ import { log } from '~/utils/logger';
 import { GAME_HEIGHT, GAME_WIDTH, HALF_BALL, TILE_SIZE } from './constants';
 import { drawDashedLine, drawLine } from './draw';
 import { MinigolfMap } from './minigolfMap';
-import { getPlayerPos, getStrokePower, setPlayerPosRel, setPlayerX, setPlayerY } from './physics';
+import { finishStroke, getPlayerPos, getStrokePower, stepPhysics } from './physics';
 import { spriteManager } from './spriteManager';
 
 interface MapRenderResult {
@@ -114,6 +114,12 @@ export const drawBall = (playerId: number): void => {
   game.cursorCtx.putImageData(tileImageData, playerDrawX, playerDrawY);
 };
 
+export function drawBalls(): void {
+  for (let playerId = 0; playerId < game.playerCount; playerId++) {
+    drawBall(playerId);
+  }
+}
+
 export function drawAimLine(): void {
   const { playerX, playerY, currentPlayerId, mouseX, mouseY, shootingMode, cursorCtx, cursorImgData } = game;
 
@@ -168,86 +174,23 @@ export function drawAimLine(): void {
     drawLine(cursorImgData, Math.round(x1), Math.round(y1), Math.round(x1 + deltaX), Math.round(y1 + deltaY));
   }
   cursorCtx.putImageData(cursorImgData, 0, 0);
-  drawBall(currentPlayerId);
+  drawBalls();
 }
 
 export function shootDrawLoop() {
-  const playerCount = 1; // TODO
+  let anyBallMoving = false;
 
-  /* let loopStuckCounter = 0; */
-  const magnetStuckCounter: number[] = [];
-  const downHillStuckCounter: number[] = [];
-  const tempCoordX: number[] = [];
-  const tempCoordY: number[] = [];
-  /* const var10: number[] = []; */
-  const tempCoord1X: number[] = [];
-  const tempCoord1Y: number[] = [];
-  /* const var13: number[] = [];
-  const var14: number[] = []; */
-  const onHole: boolean[] = [];
-  const onLiquidOrGrassLiquid: boolean[] = [];
-  const teleported: boolean[] = [];
-  const spinningStuckCounter = [];
-
-  for (let playerIndex = 0; playerIndex < playerCount; playerIndex++) {
-    magnetStuckCounter[playerIndex] = downHillStuckCounter[playerIndex] = 0;
-    tempCoordX[playerIndex] = tempCoord1X[playerIndex] = game.playerX[playerIndex];
-    tempCoordY[playerIndex] = tempCoord1Y[playerIndex] = game.playerY[playerIndex];
-    onHole[playerIndex] = onLiquidOrGrassLiquid[playerIndex] = false;
-    // var10[playerIndex] = this.aSynchronizedBoolArray2831[playerIndex].get() ? 2.1666666666666665D : 0.0D;
-    teleported[playerIndex] = false;
-    spinningStuckCounter[playerIndex] = 0;
+  for (let i = 0; i < game.playerCount; ++i) {
+    anyBallMoving = stepPhysics(i) || anyBallMoving;
   }
-  /*
-boolean shouldSpinAroundHole = false;
-boolean onLiquid = false;
-boolean var22 = false;
-boolean var23 = super.gameContainer.synchronizedTrackTestMode.get();
-if (var23) {
-    var22 = super.gameContainer.gamePanel.maxFps();
-}
 
-int var24 = -1;
-byte topLeft = 0;
-byte left = 0;
-byte bottomLeft = 0;
-byte bottom = 0;
-byte bottomRight = 0;
-byte right = 0;
-byte topRight = 0;
-byte top = 0;
-byte center = 0;
-int y = 0;
-int x = 0;
-double speed = 0.0D;
-this.bouncyWallBounciness = this.speedThing2 = 1.0D;
-int var38 = 0;
-*/
-
-  for (let i = 0; i < playerCount; ++i) {
-    setPlayerPosRel(i, game.speedX[i] * 0.1, game.speedY[i] * 0.1);
-
-    if (game.playerX[i] < 6.6) {
-      setPlayerX(i, 6.6);
-    }
-
-    if (game.playerX[i] >= 727.9) {
-      setPlayerX(i, 727.9);
-    }
-
-    if (game.playerY[i] < 6.6) {
-      setPlayerY(i, 6.6);
-    }
-
-    if (game.playerY[i] >= 367.9) {
-      setPlayerY(i, 367.9);
-    }
-  }
   game.cursorCtx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-  drawBall(game.currentPlayerId);
+  drawBalls();
 
-  // TODO: Not from original code, just to get the ball to stop.
-  if (game.speedX[game.currentPlayerId] > 0.2 || game.speedY[game.currentPlayerId] > 0.2) {
-    requestAnimationFrame(shootDrawLoop);
+  if (anyBallMoving) {
+    game.animationFrameId = requestAnimationFrame(shootDrawLoop);
+  } else {
+    game.animationFrameId = null;
+    finishStroke();
   }
 }

@@ -26,6 +26,12 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true,
       port: Number(env.VITE_PORT || 8080),
+      proxy: {
+        '/socket.io': {
+          target: `ws://127.0.0.1:${Number(env.VITE_WS_PORT || 8081)}`,
+          ws: true,
+        },
+      },
       watch: {
         ignored: ['./src/server/**/*'],
       },
