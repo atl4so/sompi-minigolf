@@ -72,6 +72,20 @@ export function getPlayerY(playerId: number): number {
  */
 export const getPlayerPos = (playerId: number): [number, number] => [getPlayerX(playerId), getPlayerY(playerId)];
 
+export function resetPlayerPosition(playerId: number): void {
+  if (game.resetPositionX[playerId] >= 0 && game.resetPositionY[playerId] >= 0) {
+    setPlayerPos(playerId, game.resetPositionX[playerId], game.resetPositionY[playerId]);
+    return;
+  }
+
+  if (game.startPositionX >= 0 && game.startPositionY >= 0) {
+    setPlayerPos(playerId, game.startPositionX, game.startPositionY);
+    return;
+  }
+
+  setPlayerPos(playerId, 367.5, 187.5);
+}
+
 /**
  * Sets X speed of player
  * @param playerId
@@ -195,6 +209,14 @@ export function doStroke(playerId: number, stroke?: StrokeInput, emitLocalStroke
     const speedY = getPlayerSpeedY(playerId);
     setPlayerSpeed(playerId, -speedY, speedX);
   }
+
+  const speed = Math.hypot(getPlayerSpeedX(playerId), getPlayerSpeedY(playerId));
+  const speedVariance = (speed / 6.5) ** 2;
+  setPlayerSpeed(
+    playerId,
+    getPlayerSpeedX(playerId) + speedVariance * ((game.seed.next() % 50001) / 100000 - 0.25),
+    getPlayerSpeedY(playerId) + speedVariance * ((game.seed.next() % 50001) / 100000 - 0.25),
+  );
 
   /*
   isLocalPlayer = isLocalPlayer;

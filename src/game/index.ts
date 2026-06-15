@@ -1,7 +1,9 @@
 import { log } from '~/utils/logger';
 import { onMouseDown, onMouseMove } from './input';
 import { decompressMap } from './mapParser';
-import { drawAimLine, drawBalls, renderMap } from './renderer';
+import { drawAimLine, drawBalls, initializeMapState, renderMap } from './renderer';
+import { resetPlayerPosition } from './physics';
+import { GameSeed } from './seed';
 import { loadSpritesheets } from './spriteManager';
 import { parseTrack } from './track';
 import type { StrokeInput } from './physics';
@@ -20,12 +22,6 @@ interface StartGameOptions {
   trackName?: string;
   onLocalStroke?: (stroke: StrokeInput) => void;
   onTurnComplete?: () => void;
-}
-
-function getPlayerStart(startPositions: number[][], playerId: number): [number, number] {
-  const base = startPositions[playerId] ?? startPositions[0] ?? [367, 187];
-  const offset = startPositions[playerId] ? 0 : playerId * 4;
-  return [base[0] + offset, base[1] + offset];
 }
 
 export async function startGame(
@@ -61,6 +57,20 @@ export async function startGame(
     cursorImgData: cursorCtx.getImageData(0, 0, cursorCanvas.width, cursorCanvas.height),
     currentMap: null,
     collisionMap: null,
+    startPositionX: -1,
+    startPositionY: -1,
+    resetPositionX: [-1, -1, -1, -1],
+    resetPositionY: [-1, -1, -1, -1],
+    teleportStarts: [[], [], [], []],
+    teleportExits: [[], [], [], []],
+    magnetMap: null,
+    waterMode: 0,
+    collisionMode: 1,
+    onHoleSync: [],
+    shotState: null,
+    seed: new GameSeed(0),
+    bounciness: 1,
+    magnetSpeed: 1,
     animationFrameId: null,
     onLocalStroke: options.onLocalStroke,
     onTurnComplete: options.onTurnComplete,
@@ -77,18 +87,30 @@ export async function startGame(
     globalThis.game.currentMap = map;
 
     // Render map
-    const { startPositions } = await renderMap(map);
+    renderMap(map);
+    const mapState = initializeMapState(map, 0);
     game.playerCount = playerCount;
     game.playerX = [];
     game.playerY = [];
     game.speedX = [];
     game.speedY = [];
+    game.startPositionX = mapState.startPositionX;
+    game.startPositionY = mapState.startPositionY;
+    game.resetPositionX = mapState.resetPositionX;
+    game.resetPositionY = mapState.resetPositionY;
+    game.teleportStarts = mapState.teleportStarts;
+    game.teleportExits = mapState.teleportExits;
+    game.magnetMap = mapState.magnetMap;
+    game.onHoleSync = [];
+    game.shotState = null;
+    game.seed = new GameSeed(0);
     for (let playerId = 0; playerId < playerCount; playerId++) {
-      const [x, y] = getPlayerStart(startPositions, playerId);
-      game.playerX[playerId] = x;
-      game.playerY[playerId] = y;
+      game.playerX[playerId] = 0;
+      game.playerY[playerId] = 0;
       game.speedX[playerId] = 0;
       game.speedY[playerId] = 0;
+      game.onHoleSync[playerId] = false;
+      resetPlayerPosition(playerId);
     }
 
     // Listen mouse events
