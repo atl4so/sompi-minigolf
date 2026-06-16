@@ -1,36 +1,23 @@
-import { Route } from 'wouter';
-import LanguageSelect from './components/LanguageSelect';
-import { useAssetPreloader } from './hooks/useAssetPreloader';
-import { useLocalStorageLocale } from './hooks/useLocalStorageLocale';
-import { useSocketState } from './hooks/useSocketState';
+import { Suspense, lazy } from 'react';
+import { useLocation } from 'wouter';
 import './styles/styles.scss';
-import { LobbyType } from './types';
-import Game from './views/Game';
+import ClassicJavaClient from './views/ClassicJavaClient';
 import LoadingScreen from './views/LoadingScreen';
-import Lobby from './views/Lobby';
-import { LobbySelect } from './views/LobbySelect';
+
+const WebApp = lazy(() => import('./views/WebApp'));
 
 function App() {
-  const { loadingAssets } = useAssetPreloader();
-  useSocketState();
+  const [location] = useLocation();
+  const classicPath = location === '/' || location === '/classic';
 
-  useLocalStorageLocale();
-
-  if (loadingAssets) {
-    return <LoadingScreen />;
+  if (classicPath) {
+    return <ClassicJavaClient />;
   }
 
   return (
-    <>
-      <LanguageSelect />
-      <div className="app-container">
-        <div id="game">
-          <Route path="/" component={LobbySelect} />
-          <Route path="/lobby/:lobbyType">{(params) => <Lobby lobbyType={params.lobbyType as LobbyType} />}</Route>
-          <Route path="/game/:gameId" component={Game} />
-        </div>
-      </div>
-    </>
+    <Suspense fallback={<LoadingScreen />}>
+      <WebApp />
+    </Suspense>
   );
 }
 

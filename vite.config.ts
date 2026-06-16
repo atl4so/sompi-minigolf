@@ -31,6 +31,10 @@ export default defineConfig(({ mode }) => {
           target: `ws://127.0.0.1:${Number(env.VITE_WS_PORT || 8081)}`,
           ws: true,
         },
+        '/classic-ws': {
+          target: `ws://127.0.0.1:${Number(env.VITE_WS_PORT || 8081)}`,
+          ws: true,
+        },
         '/api/java-shot': {
           target: `http://127.0.0.1:${Number(env.VITE_WS_PORT || 8081)}`,
         },

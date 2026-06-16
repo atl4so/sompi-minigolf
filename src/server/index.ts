@@ -1,7 +1,9 @@
-import { Server, Socket } from 'socket.io';
+import { Server, Socket as SocketIOSocket } from 'socket.io';
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { readFileSync } from 'fs';
+import { Socket as TcpSocket } from 'net';
 import { resolve } from 'path';
+import { WebSocket, WebSocketServer } from 'ws';
 import type { StrokeInput } from '~/game/physics';
 import { getNextActivePlayer, getWinnerPlayerIds, makeMatchTracks, makePlayerRows, MAX_STROKES } from '~/game/session';
 import { LobbyType, RoomResponse, RoomState, User } from '~/types';
@@ -55,6 +57,48 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEve
   cors: {
     origin: '*',
   },
+});
+
+const classicTcpHost = process.env.CLASSIC_TCP_HOST || '127.0.0.1';
+const classicTcpPort = Number(process.env.CLASSIC_TCP_PORT || 4242);
+const classicWss = new WebSocketServer({ server: httpServer, path: '/classic-ws' });
+
+classicWss.on('connection', (webSocket) => {
+  const tcp = new TcpSocket();
+  let readBuffer = '';
+  let settled = false;
+
+  const closeBoth = () => {
+    if (!settled) {
+      settled = true;
+      tcp.destroy();
+      webSocket.close();
+    }
+  };
+
+  tcp.setEncoding('utf8');
+  tcp.on('data', (chunk) => {
+    readBuffer += chunk;
+    const lines = readBuffer.split(/\r?\n/);
+    readBuffer = lines.pop() || '';
+    for (const line of lines) {
+      if (webSocket.readyState === WebSocket.OPEN) {
+        webSocket.send(line);
+      }
+    }
+  });
+  tcp.on('error', closeBoth);
+  tcp.on('close', closeBoth);
+
+  webSocket.on('message', (message) => {
+    if (tcp.writable) {
+      tcp.write(`${message.toString()}\n`);
+    }
+  });
+  webSocket.on('error', closeBoth);
+  webSocket.on('close', closeBoth);
+
+  tcp.connect(classicTcpPort, classicTcpHost);
 });
 
 function writeCorsHeaders(response: ServerResponse) {
@@ -127,7 +171,7 @@ function roomChannel(roomId: string) {
   return `room:${roomId}`;
 }
 
-type MinigolfSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
+type MinigolfSocket = SocketIOSocket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
 function createRoomCode(): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
