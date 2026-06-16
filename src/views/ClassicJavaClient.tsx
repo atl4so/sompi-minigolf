@@ -26,6 +26,20 @@ interface BrowserSocketState {
 
 const CHEERPJ_LOADER_URL = 'https://cjrtnc.leaningtech.com/4.3/loader.js';
 const CLIENT_JAR_PATH = '/app/classic/playforia-minigolf-client.jar';
+const CLASSIC_WIDTH = 735;
+const CLASSIC_HEIGHT = 525;
+
+function viewportSize() {
+  return {
+    width: window.visualViewport?.width ?? window.innerWidth,
+    height: window.visualViewport?.height ?? window.innerHeight,
+  };
+}
+
+function classicScale() {
+  const { width, height } = viewportSize();
+  return Math.max(0.2, Math.min(width / CLASSIC_WIDTH, height / CLASSIC_HEIGHT));
+}
 
 function loadScript(src: string) {
   return new Promise<void>((resolve, reject) => {
@@ -154,8 +168,22 @@ function createNativeBridge() {
 
 function ClassicJavaClient() {
   const displayRef = useRef<HTMLDivElement | null>(null);
-  const [status, setStatus] = useState('Loading Java runtime...');
+  const [status, setStatus] = useState('Loading Minigolf...');
   const [error, setError] = useState<string | null>(null);
+  const [scale, setScale] = useState(classicScale);
+
+  useEffect(() => {
+    const updateScale = () => setScale(classicScale());
+
+    window.addEventListener('resize', updateScale);
+    window.visualViewport?.addEventListener('resize', updateScale);
+    updateScale();
+
+    return () => {
+      window.removeEventListener('resize', updateScale);
+      window.visualViewport?.removeEventListener('resize', updateScale);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,11 +204,16 @@ function ClassicJavaClient() {
           throw new Error('CheerpJ runtime did not initialize');
         }
 
-        setStatus('Starting original Java client...');
+        setStatus('Loading Minigolf...');
         await initCheerpJ({
           version: 17,
-          status: 'splash',
-          javaProperties: [`minigolf.wsUrl=${wsUrl}`],
+          status: 'none',
+          javaProperties: [
+            `minigolf.wsUrl=${wsUrl}`,
+            'minigolf.streamMode=true',
+            `minigolf.frameWidth=${CLASSIC_WIDTH}`,
+            `minigolf.frameHeight=${CLASSIC_HEIGHT}`,
+          ],
           natives: createNativeBridge(),
         });
         if (!window.cheerpjCreateDisplay || !window.cheerpjRunMain) {
@@ -192,7 +225,7 @@ function ClassicJavaClient() {
         }
 
         display.replaceChildren();
-        window.cheerpjCreateDisplay(1280, 720, display);
+        window.cheerpjCreateDisplay(CLASSIC_WIDTH, CLASSIC_HEIGHT, display);
         setStatus('');
         await window.cheerpjRunMain('org.moparforia.client.Launcher', CLIENT_JAR_PATH, '-ip', 'browser', '-p', '1', '-l', 'en');
       } catch (err) {
@@ -212,7 +245,11 @@ function ClassicJavaClient() {
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
-        <div ref={displayRef} className={styles.display} />
+        <div
+          ref={displayRef}
+          className={styles.display}
+          style={{ transform: `translate(-50%, -50%) scale(${scale})` }}
+        />
         {status ? <div className={styles.status}>{status}</div> : null}
         {error ? <div className={styles.error}>{error}</div> : null}
       </div>

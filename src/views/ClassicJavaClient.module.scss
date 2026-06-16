@@ -1,27 +1,40 @@
 @import '~/styles/theme';
 
 .page {
-  min-height: 100vh;
-  min-width: 100vw;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: fixed;
+  inset: 0;
   background: #99ff99;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .shell {
-  width: min(100vw, 1280px);
-  height: min(100vh, 720px);
-  min-width: 735px;
-  min-height: 525px;
-  position: relative;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
   background: #99ff99;
 }
 
 .display {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 735px;
+  height: 525px;
+  background: #99ff99;
+  overflow: hidden;
+  transform-origin: center center;
+  user-select: none;
+  will-change: transform;
+}
+
+.display :global(.cjBordered) {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.display canvas,
+.display img {
+  image-rendering: auto;
 }
 
 .status {
