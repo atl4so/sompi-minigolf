@@ -3,6 +3,7 @@ import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import type { StrokeInput } from '~/game/physics';
+import { getNextActivePlayer, getWinnerPlayerIds, makeMatchTracks, makePlayerRows, MAX_STROKES } from '~/game/session';
 import { LobbyType, RoomResponse, RoomState, User } from '~/types';
 import { log } from '~/utils/logger';
 import { WS_PORT } from './env';
@@ -17,6 +18,8 @@ export interface ServerToClientEvents {
   gameStarted: (room: RoomState) => void;
   strokeTaken: (stroke: StrokeInput) => void;
   turnChanged: (playerId: number) => void;
+  trackStarted: (room: RoomState) => void;
+  gameFinished: (room: RoomState) => void;
 }
 
 export interface ClientToServerEvents {
@@ -30,7 +33,7 @@ export interface ClientToServerEvents {
   leaveRoom: () => void;
   startRoomGame: (callback: (response: RoomResponse) => void) => void;
   takeStroke: (stroke: StrokeInput) => void;
-  turnComplete: () => void;
+  turnComplete: (onHole: boolean) => void;
 }
 
 interface InterServerEvents {
@@ -39,7 +42,7 @@ interface InterServerEvents {
 
 interface SocketData {
   name: string;
-  lobbyType: LobbyType;
+  lobbyType?: LobbyType;
   roomId?: string;
   playerId?: number;
 }
@@ -111,9 +114,9 @@ function getConnectionsText() {
 
 const ignoredPlayersByUsername = new Map<string, Set<string>>();
 const rooms = new Map<string, RoomState>();
-const trackNames = JSON.parse(
-  readFileSync(resolve(process.cwd(), 'public/assets/tracks/tracks.json'), 'utf8'),
-) as string[];
+const trackNames = new Set(
+  JSON.parse(readFileSync(resolve(process.cwd(), 'public/assets/tracks/tracks.json'), 'utf8')) as string[],
+);
 
 function sanitizeUsername(username: string | undefined, fallback: string) {
   const trimmed = username?.trim().replace(/\s+/g, ' ').slice(0, 18);
@@ -135,15 +138,84 @@ function createRoomCode(): string {
   return rooms.has(code) ? createRoomCode() : code;
 }
 
-function pickTrackName() {
-  const curated = ['Aquaria', 'BasicElements', 'BasementReflex', 'ColourMeYellow', 'Cube', 'Darwin', 'WildWest'];
-  const candidates = curated.filter((trackName) => trackNames.includes(trackName));
-  const list = candidates.length > 0 ? candidates : trackNames;
-  return list[Math.floor(Math.random() * list.length)];
-}
-
 function emitRoomState(room: RoomState) {
   io.to(roomChannel(room.id)).emit('roomState', room);
+}
+
+function createRoomState(roomId: string, hostId: string, hostName: string): RoomState {
+  const trackList = makeMatchTracks().filter((trackName) => trackNames.has(trackName));
+  const trackNamesForRoom = trackList.length > 0 ? trackList : ['BasicElements'];
+  return {
+    id: roomId,
+    hostId,
+    players: [
+      {
+        id: hostId,
+        name: hostName,
+        playerId: 0,
+      },
+    ],
+    status: 'lobby',
+    trackName: trackNamesForRoom[0],
+    trackNames: trackNamesForRoom,
+    trackIndex: 0,
+    currentPlayerId: 0,
+    currentStrokes: [0],
+    scores: [[]],
+    holed: [false],
+    maxStrokes: MAX_STROKES,
+    winnerPlayerIds: [],
+  };
+}
+
+function syncRoomPlayerArrays(room: RoomState) {
+  room.currentStrokes = room.players.map((_, playerId) => room.currentStrokes[playerId] ?? 0);
+  room.scores = room.players.map((_, playerId) => room.scores[playerId] ?? []);
+  room.holed = room.players.map((_, playerId) => room.holed[playerId] ?? false);
+}
+
+function resetRoomMatch(room: RoomState) {
+  room.trackNames = makeMatchTracks().filter((trackName) => trackNames.has(trackName));
+  if (room.trackNames.length === 0) {
+    room.trackNames = ['BasicElements'];
+  }
+  room.trackIndex = 0;
+  room.trackName = room.trackNames[0];
+  room.currentPlayerId = 0;
+  room.currentStrokes = makePlayerRows(room.players.length, 0);
+  room.scores = room.players.map(() => []);
+  room.holed = makePlayerRows(room.players.length, false);
+  room.maxStrokes = MAX_STROKES;
+  room.winnerPlayerIds = [];
+}
+
+function finishTrackOrAdvanceTurn(room: RoomState) {
+  if (!room.holed.every(Boolean)) {
+    room.currentPlayerId = getNextActivePlayer(room.currentPlayerId, room.holed);
+    io.to(roomChannel(room.id)).emit('turnChanged', room.currentPlayerId);
+    emitRoomState(room);
+    return;
+  }
+
+  room.players.forEach((_, playerId) => {
+    room.scores[playerId][room.trackIndex] = room.currentStrokes[playerId] || room.maxStrokes + 1;
+  });
+
+  room.trackIndex += 1;
+  if (room.trackIndex >= room.trackNames.length) {
+    room.status = 'finished';
+    room.winnerPlayerIds = getWinnerPlayerIds(room.scores);
+    io.to(roomChannel(room.id)).emit('gameFinished', room);
+    emitRoomState(room);
+    return;
+  }
+
+  room.trackName = room.trackNames[room.trackIndex];
+  room.currentStrokes = makePlayerRows(room.players.length, 0);
+  room.holed = makePlayerRows(room.players.length, false);
+  room.currentPlayerId = room.trackIndex % room.players.length;
+  io.to(roomChannel(room.id)).emit('trackStarted', room);
+  emitRoomState(room);
 }
 
 function leaveCurrentRoom(socket: MinigolfSocket) {
@@ -175,6 +247,7 @@ function leaveCurrentRoom(socket: MinigolfSocket) {
     ...player,
     playerId,
   }));
+  syncRoomPlayerArrays(room);
 
   if (room.currentPlayerId >= room.players.length) {
     room.currentPlayerId = 0;
@@ -196,10 +269,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('sendMessage', (text) => {
+    const displayName = socket.data.name || username;
     if (privateMessageUser) {
-      io.to(privateMessageUser).emit('message', text, username, true);
+      io.to(privateMessageUser).emit('message', text, displayName, true);
+    } else if (socket.data.roomId) {
+      socket.to(roomChannel(socket.data.roomId)).emit('message', text, displayName);
     } else {
-      socket.broadcast.emit('message', text, username);
+      socket.broadcast.emit('message', text, displayName);
     }
   });
 
@@ -207,7 +283,7 @@ io.on('connection', (socket) => {
     leaveCurrentRoom(socket);
     if (socket.data.lobbyType) {
       // Broadcast leave message to all users in the current lobby
-      socket.broadcast.emit('userLeft', username);
+      socket.broadcast.emit('userLeft', socket.data.name || username);
     }
     log.info(`"${username}" disconnected. ${getConnectionsText()}`);
   });
@@ -220,18 +296,19 @@ io.on('connection', (socket) => {
     socket.emit(
       'users',
       roomSockets.map((s) => ({
-        name: s.data.name,
+        name: s.data.name || 'Player',
       })),
     );
     // Broadcast join message to all users in the current lobby
-    socket.to(lobbyType).emit('userJoined', username);
+    socket.to(lobbyType).emit('userJoined', socket.data.name || username);
   });
 
   socket.on('leaveLobby', () => {
-    if (socket.data.lobbyType) {
-      log.info(`"${socket.data.name}" left "${socket.data.lobbyType}" lobby`);
-      socket.leave(socket.data.lobbyType);
-      socket.to(socket.data.lobbyType).emit('userLeft', username);
+    const lobbyType = socket.data.lobbyType;
+    if (lobbyType) {
+      log.info(`"${socket.data.name}" left "${lobbyType}" lobby`);
+      socket.leave(lobbyType);
+      socket.to(lobbyType).emit('userLeft', socket.data.name || username);
       socket.data.lobbyType = undefined;
     }
   });
@@ -244,20 +321,7 @@ io.on('connection', (socket) => {
     leaveCurrentRoom(socket);
     socket.data.name = sanitizeUsername(name, username);
     const roomId = createRoomCode();
-    const room: RoomState = {
-      id: roomId,
-      hostId: socket.id,
-      players: [
-        {
-          id: socket.id,
-          name: socket.data.name,
-          playerId: 0,
-        },
-      ],
-      status: 'lobby',
-      trackName: pickTrackName(),
-      currentPlayerId: 0,
-    };
+    const room = createRoomState(roomId, socket.id, socket.data.name);
 
     rooms.set(roomId, room);
     socket.data.roomId = roomId;
@@ -275,7 +339,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (room.status === 'playing') {
+    if (room.status !== 'lobby') {
       callback({ ok: false, error: 'Game already started' });
       return;
     }
@@ -294,6 +358,7 @@ io.on('connection', (socket) => {
       name: socket.data.name,
       playerId: socket.data.playerId,
     });
+    syncRoomPlayerArrays(room);
     await socket.join(roomChannel(roomId));
     callback({ ok: true, room });
     emitRoomState(room);
@@ -315,9 +380,13 @@ io.on('connection', (socket) => {
       return;
     }
 
+    if (room.players.length < 2) {
+      callback({ ok: false, error: 'Need at least 2 players' });
+      return;
+    }
+
     room.status = 'playing';
-    room.trackName = pickTrackName();
-    room.currentPlayerId = 0;
+    resetRoomMatch(room);
     callback({ ok: true, room });
     io.to(roomChannel(room.id)).emit('gameStarted', room);
     emitRoomState(room);
@@ -329,21 +398,23 @@ io.on('connection', (socket) => {
       return;
     }
 
-    io.to(roomChannel(room.id)).emit('strokeTaken', {
+    room.currentStrokes[socket.data.playerId] = (room.currentStrokes[socket.data.playerId] ?? 0) + 1;
+    socket.to(roomChannel(room.id)).emit('strokeTaken', {
       ...stroke,
       playerId: socket.data.playerId,
     });
+    emitRoomState(room);
   });
 
-  socket.on('turnComplete', () => {
+  socket.on('turnComplete', (onHole) => {
     const room = socket.data.roomId ? rooms.get(socket.data.roomId) : undefined;
-    if (!room || room.status !== 'playing') {
+    if (!room || room.status !== 'playing' || socket.data.playerId !== room.currentPlayerId) {
       return;
     }
 
-    room.currentPlayerId = (room.currentPlayerId + 1) % room.players.length;
-    io.to(roomChannel(room.id)).emit('turnChanged', room.currentPlayerId);
-    emitRoomState(room);
+    const playerId = socket.data.playerId;
+    room.holed[playerId] = onHole || room.currentStrokes[playerId] >= room.maxStrokes;
+    finishTrackOrAdvanceTurn(room);
   });
 });
 

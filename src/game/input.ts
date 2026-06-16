@@ -22,6 +22,10 @@ export function onMouseMove(evt: MouseEvent): void {
 }
 
 export function onMouseDown(evt: MouseEvent): void {
+  if (game.gameBusy) {
+    return;
+  }
+
   if (game.currentPlayerId !== game.localPlayerId) {
     return;
   }

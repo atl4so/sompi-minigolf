@@ -1,0 +1,52 @@
+@import '~/styles/theme';
+
+.hud {
+  width: 735px;
+  box-sizing: border-box;
+  border: 1px solid #4b704b;
+  background: #e8f8df;
+  color: #103010;
+  font-family: $font-family;
+  font-size: 12px;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #8bb58b;
+}
+
+.summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #8bb58b;
+  color: #0050a0;
+  font-weight: bold;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 3px 5px;
+  text-align: center;
+  border-right: 1px solid #b9d9b0;
+  white-space: nowrap;
+}
+
+.table th:first-child,
+.table td:first-child {
+  width: 118px;
+  text-align: left;
+}
+
+.active {
+  background: #fff4b8;
+}
+
+.winner {
+  color: #0060c0;
+  font-weight: bold;
+}

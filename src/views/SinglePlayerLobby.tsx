@@ -1,7 +1,7 @@
-import GameCanvas from '~/components/GameCanvas';
+import LocalMatchLobby from './LocalMatchLobby';
 
 function SinglePlayerLobby() {
-  return <GameCanvas />;
+  return <LocalMatchLobby playerNames={['Player']} />;
 }
 
 export default SinglePlayerLobby;

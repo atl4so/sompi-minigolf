@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Button from '~/components/Button';
+import ChatTextField from '~/components/ChatInputs';
+import ChatMessages, { ChatMessage } from '~/components/ChatMessages';
 import GameCanvas from '~/components/GameCanvas';
 import LobbyNavigation from '~/components/LobbyNavigation';
+import MatchHud from '~/components/MatchHud';
 import Stack from '~/components/Stack';
 import TextInput from '~/components/TextInput';
 import type { Game } from '~/game';
@@ -15,6 +18,7 @@ function MultiplayerLobby() {
   const [roomCode, setRoomCode] = useState('');
   const [room, setRoom] = useState<RoomState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const gameRef = useRef<Game | null>(null);
 
   useEffect(() => {
@@ -25,22 +29,40 @@ function MultiplayerLobby() {
   useEffect(() => {
     const onRoomState = (nextRoom: RoomState) => setRoom(nextRoom);
     const onGameStarted = (nextRoom: RoomState) => setRoom(nextRoom);
+    const onTrackStarted = (nextRoom: RoomState) => setRoom(nextRoom);
+    const onGameFinished = (nextRoom: RoomState) => setRoom(nextRoom);
     const onStrokeTaken = (stroke: StrokeInput) => gameRef.current?.applyStroke(stroke);
     const onTurnChanged = (playerId: number) => {
       gameRef.current?.setCurrentPlayer(playerId);
       setRoom((currentRoom) => (currentRoom ? { ...currentRoom, currentPlayerId: playerId } : currentRoom));
     };
+    const onMessage = (text: string, from: string, isPrivate?: boolean) => {
+      setChatMessages((messages) => [
+        ...messages,
+        {
+          text,
+          from,
+          color: isPrivate ? '#a000a0' : '#000',
+        },
+      ]);
+    };
 
     socket.on('roomState', onRoomState);
     socket.on('gameStarted', onGameStarted);
+    socket.on('trackStarted', onTrackStarted);
+    socket.on('gameFinished', onGameFinished);
     socket.on('strokeTaken', onStrokeTaken);
     socket.on('turnChanged', onTurnChanged);
+    socket.on('message', onMessage);
 
     return () => {
       socket.off('roomState', onRoomState);
       socket.off('gameStarted', onGameStarted);
+      socket.off('trackStarted', onTrackStarted);
+      socket.off('gameFinished', onGameFinished);
       socket.off('strokeTaken', onStrokeTaken);
       socket.off('turnChanged', onTurnChanged);
+      socket.off('message', onMessage);
       socket.emit('leaveRoom');
     };
   }, []);
@@ -85,6 +107,21 @@ function MultiplayerLobby() {
     setRoom(null);
   }, []);
 
+  const sendChatMessage = useCallback(
+    (text: string) => {
+      socket.emit('sendMessage', text);
+      setChatMessages((messages) => [
+        ...messages,
+        {
+          text,
+          from: username,
+          color: '#0000f0',
+        },
+      ]);
+    },
+    [username],
+  );
+
   const localPlayer = room?.players.find((player) => player.id === socket.id);
   const currentPlayer = room?.players.find((player) => player.playerId === room.currentPlayerId);
   const isHost = room?.hostId === socket.id;
@@ -98,6 +135,7 @@ function MultiplayerLobby() {
           <span>Turn: {currentPlayer?.name || 'Player'}</span>
         </div>
         <GameCanvas
+          key={`${room.id}-${room.trackIndex}-${room.trackName}`}
           playerCount={room.players.length}
           localPlayerId={localPlayer.playerId}
           currentPlayerId={room.currentPlayerId}
@@ -106,8 +144,62 @@ function MultiplayerLobby() {
             gameRef.current = game;
           }}
           onLocalStroke={(stroke) => socket.emit('takeStroke', stroke)}
-          onTurnComplete={() => socket.emit('turnComplete')}
+          onTurnComplete={() => {
+            if (room.currentPlayerId === localPlayer.playerId) {
+              socket.emit('turnComplete', Boolean(gameRef.current?.getOnHole(localPlayer.playerId)));
+            }
+          }}
         />
+        <MatchHud
+          playerNames={room.players.map((player) => player.name)}
+          trackNames={room.trackNames}
+          trackIndex={room.trackIndex}
+          trackName={room.trackName}
+          currentPlayerId={room.currentPlayerId}
+          currentStrokes={room.currentStrokes}
+          scores={room.scores}
+          holed={room.holed}
+          maxStrokes={room.maxStrokes}
+          winnerPlayerIds={room.winnerPlayerIds}
+        />
+        <div className={styles.chat}>
+          <ChatMessages messages={chatMessages} />
+          <ChatTextField onSend={sendChatMessage} />
+        </div>
+      </div>
+    );
+  }
+
+  if (room?.status === 'finished') {
+    return (
+      <div className={styles.gameRoom}>
+        <MatchHud
+          playerNames={room.players.map((player) => player.name)}
+          trackNames={room.trackNames}
+          trackIndex={room.trackIndex}
+          trackName={room.trackName}
+          currentPlayerId={room.currentPlayerId}
+          currentStrokes={room.currentStrokes}
+          scores={room.scores}
+          holed={room.holed}
+          maxStrokes={room.maxStrokes}
+          winnerPlayerIds={room.winnerPlayerIds}
+        />
+        <div className={styles.finished}>Winner: {room.winnerPlayerIds.map((playerId) => room.players[playerId]?.name).join(', ')}</div>
+        <Stack direction="row" gap="7px">
+          {isHost ? (
+            <Button variant="blue" size="small" onClick={startGame}>
+              New game
+            </Button>
+          ) : null}
+          <Button variant="red" size="small" onClick={leaveRoom}>
+            Leave
+          </Button>
+        </Stack>
+        <div className={styles.chat}>
+          <ChatMessages messages={chatMessages} />
+          <ChatTextField onSend={sendChatMessage} />
+        </div>
       </div>
     );
   }
@@ -126,6 +218,7 @@ function MultiplayerLobby() {
         {room ? (
           <>
             <div className={styles.roomCode}>Room {room.id}</div>
+            <div className={styles.roomMeta}>Maps: {room.trackNames.length}</div>
             <div className={styles.players}>
               {room.players.map((player) => (
                 <div key={player.id}>
@@ -145,6 +238,10 @@ function MultiplayerLobby() {
                 Leave
               </Button>
             </Stack>
+            <div className={styles.chat}>
+              <ChatMessages messages={chatMessages} />
+              <ChatTextField onSend={sendChatMessage} />
+            </div>
           </>
         ) : (
           <>

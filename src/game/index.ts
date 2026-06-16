@@ -13,6 +13,7 @@ export interface Game {
   loadTrack: (mapName: string, playerCount?: number) => Promise<void>;
   setCurrentPlayer: (playerId: number) => void;
   setLocalPlayer: (playerId: number) => void;
+  getOnHole: (playerId: number) => boolean;
   applyStroke: (stroke: StrokeInput) => void;
   cleanUp: () => void;
 }
@@ -151,6 +152,7 @@ export async function startGame(
     setLocalPlayer: (playerId: number) => {
       game.localPlayerId = playerId;
     },
+    getOnHole: (playerId: number) => game.onHoleSync[playerId] ?? false,
     applyStroke: (stroke: StrokeInput) => {
       import('./physics').then(({ doStroke }) => doStroke(stroke.playerId, stroke, false));
     },
