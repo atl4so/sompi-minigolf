@@ -17,7 +17,7 @@ function collectJavaSources(directory: string): string[] {
     if (entry.isDirectory()) {
       return collectJavaSources(fullPath);
     }
-    return entry.isFile() && entry.name.endsWith('.java') ? [fullPath] : [];
+    return entry.isFile() && entry.name.endsWith('.java') && entry.name !== 'ShotEngineModule.java' ? [fullPath] : [];
   });
 }
 

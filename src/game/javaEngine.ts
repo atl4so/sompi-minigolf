@@ -5,6 +5,10 @@ const GAME_HEIGHT = 375;
 const MAP_WIDTH = 49;
 const MAP_HEIGHT = 25;
 
+type BrowserShotEngine = typeof import('../generated/java-engine/shot-engine');
+
+let browserEnginePromise: Promise<BrowserShotEngine | null> | null = null;
+
 export interface JavaShotResult {
   frames: number[][];
   playerX: number[];
@@ -105,17 +109,44 @@ function buildRequest(stroke: StrokeInput): Record<string, string> | null {
   };
 }
 
+function requestToInputLines(request: Record<string, string>): string {
+  return Object.entries(request)
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
+}
+
+function loadBrowserEngine(): Promise<BrowserShotEngine | null> {
+  if (!browserEnginePromise) {
+    browserEnginePromise = import('../generated/java-engine/shot-engine').catch(() => null);
+  }
+
+  return browserEnginePromise;
+}
+
+export function preloadJavaShotEngine(): void {
+  void loadBrowserEngine();
+}
+
+async function simulateBrowserJavaShot(request: Record<string, string>): Promise<JavaShotResult | null> {
+  const engine = await loadBrowserEngine();
+  if (!engine) {
+    return null;
+  }
+
+  const result = JSON.parse(engine.simulate(requestToInputLines(request))) as JavaShotResult & { error?: string };
+  if (result.error) {
+    return null;
+  }
+
+  return result;
+}
+
 function getEngineEndpoint(): string {
   const base = import.meta.env.VITE_ENGINE_URL || import.meta.env.VITE_WS_URL || window.location.origin;
   return new URL('/api/java-shot', base).toString();
 }
 
-export async function simulateJavaShot(stroke: StrokeInput): Promise<JavaShotResult | null> {
-  const request = buildRequest(stroke);
-  if (!request) {
-    return null;
-  }
-
+async function simulateServerJavaShot(request: Record<string, string>): Promise<JavaShotResult | null> {
   const response = await fetch(getEngineEndpoint(), {
     method: 'POST',
     headers: {
@@ -129,4 +160,18 @@ export async function simulateJavaShot(stroke: StrokeInput): Promise<JavaShotRes
   }
 
   return (await response.json()) as JavaShotResult;
+}
+
+export async function simulateJavaShot(stroke: StrokeInput): Promise<JavaShotResult | null> {
+  const request = buildRequest(stroke);
+  if (!request) {
+    return null;
+  }
+
+  const browserResult = await simulateBrowserJavaShot(request);
+  if (browserResult) {
+    return browserResult;
+  }
+
+  return simulateServerJavaShot(request);
 }

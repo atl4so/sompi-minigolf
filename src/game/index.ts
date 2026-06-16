@@ -1,4 +1,5 @@
 import { log } from '~/utils/logger';
+import { preloadJavaShotEngine } from './javaEngine';
 import { onMouseDown, onMouseMove } from './input';
 import { decompressMap } from './mapParser';
 import { drawAimLine, drawBalls, initializeMapState, renderMap } from './renderer';
@@ -75,6 +76,7 @@ export async function startGame(
     onLocalStroke: options.onLocalStroke,
     onTurnComplete: options.onTurnComplete,
   };
+  preloadJavaShotEngine();
 
   const loadTrack = async (mapName: string, playerCount = options.playerCount ?? 1) => {
     log.debug(`Loading track "${mapName}""`);

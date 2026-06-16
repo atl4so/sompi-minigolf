@@ -5,6 +5,7 @@ dist-ssr
 *.local
 playforia-minigolf
 java-engine/build
+java-engine/target
 .build-stats.html
 .env
 # Local Netlify folder

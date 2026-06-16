@@ -6,10 +6,12 @@
   "bugs": "https://github.com/atl4so/sompi-minigolf/issues",
   "license": "MIT",
   "scripts": {
+    "build:engine": "mvn -q -f java-engine/pom.xml package",
+    "verify:engine": "node scripts/verify-java-engine.mjs",
     "dev:vite": "vite",
     "dev:server": "vite-node -w src/server/index.ts",
     "dev": "concurrently -n vite,server -c cyan,green \"npm run dev:vite\" \"npm run dev:server\"",
-    "build": "tsc && vite build",
+    "build": "npm run build:engine && tsc && vite build",
     "serve": "vite preview"
   },
   "dependencies": {
