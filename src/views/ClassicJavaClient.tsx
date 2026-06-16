@@ -28,17 +28,26 @@ const CHEERPJ_LOADER_URL = 'https://cjrtnc.leaningtech.com/4.3/loader.js';
 const CLIENT_JAR_PATH = '/app/classic/playforia-minigolf-client.jar';
 const CLASSIC_WIDTH = 735;
 const CLASSIC_HEIGHT = 525;
+const CLASSIC_READY_TEXT = ['Nickname:', 'Single player', 'Graphics:', 'Audio:'];
 
-function viewportSize() {
-  return {
-    width: window.visualViewport?.width ?? window.innerWidth,
-    height: window.visualViewport?.height ?? window.innerHeight,
-  };
+function isClassicUiReady() {
+  const pageText = document.body.innerText;
+  return CLASSIC_READY_TEXT.some((text) => pageText.includes(text));
 }
 
-function classicScale() {
-  const { width, height } = viewportSize();
-  return Math.max(0.2, Math.min(width / CLASSIC_WIDTH, height / CLASSIC_HEIGHT));
+function waitForClassicUi(cancelled: () => boolean) {
+  return new Promise<void>((resolve) => {
+    const check = () => {
+      if (cancelled() || isClassicUiReady()) {
+        resolve();
+        return;
+      }
+
+      window.setTimeout(check, 100);
+    };
+
+    check();
+  });
 }
 
 function loadScript(src: string) {
@@ -170,20 +179,20 @@ function ClassicJavaClient() {
   const displayRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState('Loading Minigolf...');
   const [error, setError] = useState<string | null>(null);
-  const [scale, setScale] = useState(classicScale);
 
   useEffect(() => {
-    const updateScale = () => setScale(classicScale());
+    if (!status) {
+      return;
+    }
 
-    window.addEventListener('resize', updateScale);
-    window.visualViewport?.addEventListener('resize', updateScale);
-    updateScale();
+    const interval = window.setInterval(() => {
+      if (isClassicUiReady()) {
+        setStatus('');
+      }
+    }, 100);
 
-    return () => {
-      window.removeEventListener('resize', updateScale);
-      window.visualViewport?.removeEventListener('resize', updateScale);
-    };
-  }, []);
+    return () => window.clearInterval(interval);
+  }, [status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -226,8 +235,21 @@ function ClassicJavaClient() {
 
         display.replaceChildren();
         window.cheerpjCreateDisplay(CLASSIC_WIDTH, CLASSIC_HEIGHT, display);
-        setStatus('');
-        await window.cheerpjRunMain('org.moparforia.client.Launcher', CLIENT_JAR_PATH, '-ip', 'browser', '-p', '1', '-l', 'en');
+        const runMain = window.cheerpjRunMain(
+          'org.moparforia.client.Launcher',
+          CLIENT_JAR_PATH,
+          '-ip',
+          'browser',
+          '-p',
+          '1',
+          '-l',
+          'en',
+        );
+        await waitForClassicUi(() => cancelled);
+        if (!cancelled) {
+          setStatus('');
+        }
+        await runMain;
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Classic Java client failed to start');
@@ -245,11 +267,9 @@ function ClassicJavaClient() {
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
-        <div
-          ref={displayRef}
-          className={styles.display}
-          style={{ transform: `translate(-50%, -50%) scale(${scale})` }}
-        />
+        <div className={styles.viewport}>
+          <div ref={displayRef} className={styles.display} />
+        </div>
         {status ? <div className={styles.status}>{status}</div> : null}
         {error ? <div className={styles.error}>{error}</div> : null}
       </div>
